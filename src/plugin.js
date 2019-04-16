@@ -528,9 +528,9 @@ tinymce.PluginManager.add('variable', function (editor) {
   }
 
   function prevChar() {
-    const start = editor.selection.getRng(true).startOffset;
-    const text = editor.selection.getRng(true).startContainer.data || '';
-    const character = text.substr(start > 0 ? start - 1 : 0, 1);
+    var start = editor.selection.getRng(true).startOffset;
+    var text = editor.selection.getRng(true).startContainer.data || '';
+    var character = text.substr(start > 0 ? start - 1 : 0, 1);
 
     return character;
   }
