@@ -518,7 +518,7 @@ tinymce.PluginManager.add('variable', function (editor) {
     var autoComplete,
       autoCompleteData = editor.getParam('variable_mapper');
 
-    if (`${e.key}${prevChar()}` === prefix) {
+    if (e.key + prevChar() === prefix) {
       if (autoComplete === undefined || (autoComplete.hasFocus !== undefined && !autoComplete.hasFocus)) {
         e.preventDefault();
         // Clone options object and set the used delimiter.
