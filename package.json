@@ -14,7 +14,8 @@
   "main": "src/plugin.js",
   "dependencies": {
     "eslint": "^1.0.0-rc-1",
-    "uglify-js": "^3.1.0"
+    "uglify-js": "^3.1.0",
+    "jquery": "3.4.0"
   },
   "bugs": {
     "url": "https://github.com/bubobox/tinymce-variable/issues"
