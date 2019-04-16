@@ -11,7 +11,7 @@
 /*global tinymce:true */
 
 tinymce.PluginManager.add('variable', function (editor) {
-  const $ = require('jquery');
+  var $ = require('jquery');
 
   var VK = tinymce.util.VK;
 
