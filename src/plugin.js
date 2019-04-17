@@ -91,8 +91,8 @@ tinymce.PluginManager.add('variable', function (editor) {
     },
 
     bindEvents: function () {
-      // this.editor.on('keyup', this.editorKeyUpProxy = $.proxy(this.rteKeyUp, this));
-      // this.editor.on('keydown', this.editorKeyDownProxy = $.proxy(this.rteKeyDown, this), true);
+      this.editor.on('keyup', this.editorKeyUpProxy = $.proxy(this.rteKeyUp, this));
+      this.editor.on('keydown', this.editorKeyDownProxy = $.proxy(this.rteKeyDown, this), true);
       this.editor.on('click', this.editorClickProxy = $.proxy(this.rteClicked, this));
 
       $('body').on('click', this.bodyClickProxy = $.proxy(this.rteLostFocus, this));
