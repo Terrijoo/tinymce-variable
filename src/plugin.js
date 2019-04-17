@@ -44,6 +44,10 @@ tinymce.PluginManager.add('variable', function (editor) {
   var prefix = editor.getParam('variable_prefix', '{{');
   var suffix = editor.getParam('variable_suffix', '}}');
 
+  var autoComplete;
+  var autoCompleteData = editor.getParam('variables');
+  autoCompleteData.delimiter = (autoCompleteData.delimiter !== undefined) ? autoCompleteData.delimiter : prefix;
+
   var AutoComplete = function (ed, options) {
     this.editor = ed;
 
@@ -77,7 +81,6 @@ tinymce.PluginManager.add('variable', function (editor) {
 
     renderInput: function () {
       var rawHtml = '<span id="autocomplete">' +
-        '<span id="autocomplete-delimiter">' + this.options.delimiter + '</span>' +
         '<span id="autocomplete-searchtext"><span class="dummy">\uFEFF</span></span>' +
         '</span>';
 
@@ -88,8 +91,8 @@ tinymce.PluginManager.add('variable', function (editor) {
     },
 
     bindEvents: function () {
-      this.editor.on('keyup', this.editorKeyUpProxy = $.proxy(this.rteKeyUp, this));
-      this.editor.on('keydown', this.editorKeyDownProxy = $.proxy(this.rteKeyDown, this), true);
+      // this.editor.on('keyup', this.editorKeyUpProxy = $.proxy(this.rteKeyUp, this));
+      // this.editor.on('keydown', this.editorKeyDownProxy = $.proxy(this.rteKeyDown, this), true);
       this.editor.on('click', this.editorClickProxy = $.proxy(this.rteClicked, this));
 
       $('body').on('click', this.bodyClickProxy = $.proxy(this.rteLostFocus, this));
@@ -259,6 +262,10 @@ tinymce.PluginManager.add('variable', function (editor) {
     show: function () {
       var offset = this.editor.inline ? this.offsetInline() : this.offset();
 
+      if (!offset) {
+        return false;
+      }
+
       this.$dropdown = $(this.renderDropdown())
         .css({'top': offset.top, 'left': offset.left});
 
@@ -289,7 +296,7 @@ tinymce.PluginManager.add('variable', function (editor) {
       $.each(items, function (i, item) {
         var $element = $(_this.render(item, i));
 
-        var textNodes = $element.find('*').andSelf().contents().filter(function () {
+        var textNodes = $element.find('*').addBack().contents().filter(function () {
           return this.nodeType === 3; //Node.TEXT_NODE
         }).each(function (index, element) {
           $(element).parent().html(_this.highlighter(element.textContent));
@@ -356,13 +363,12 @@ tinymce.PluginManager.add('variable', function (editor) {
 
     select: function (item) {
       this.editor.focus();
-      var selection = this.editor.dom.select('span#autocomplete')[0];
-      this.editor.dom.remove(selection);
       this.editor.execCommand('mceInsertContent', false, this.insert(item));
+      // stringToHTML();
     },
 
     insert: function (item) {
-      return '<span>' + item[this.options.insertFrom] + '</span>&nbsp;';
+      return prefix + item[this.options.insertFrom] + suffix;
     },
 
     cleanUp: function (rollback) {
@@ -397,11 +403,16 @@ tinymce.PluginManager.add('variable', function (editor) {
     offset: function () {
       var rtePosition = $(this.editor.getContainer()).offset(),
         contentAreaPosition = $(this.editor.getContentAreaContainer()).position(),
-        nodePosition = $(this.editor.dom.select('span#autocomplete')).position();
+        nodePosition = $(this.editor.dom.select('span#autocomplete')).position(),
+        iframePosition = $(this.editor.iframeElement).position();
+
+      if (!nodePosition) {
+        return false;
+      }
 
       return {
         top: rtePosition.top + contentAreaPosition.top + nodePosition.top + $(this.editor.selection.getNode()).innerHeight() - $(this.editor.getDoc()).scrollTop() + 5,
-        left: rtePosition.left + contentAreaPosition.left + nodePosition.left,
+        left: rtePosition.left + contentAreaPosition.left + nodePosition.left + iframePosition.left,
       };
     },
 
@@ -421,7 +432,7 @@ tinymce.PluginManager.add('variable', function (editor) {
    * @return {RegExp}
    */
   function getStringVariableRegex() {
-    return new RegExp(prefix + '[a-zA-Z]+' + suffix, 'g');
+    return new RegExp(prefix + '[a-z_A-Z]+' + suffix, 'g');
   }
 
   /**
@@ -515,14 +526,22 @@ tinymce.PluginManager.add('variable', function (editor) {
   }
 
   function handleInput(e) {
-    var autoComplete,
-      autoCompleteData = editor.getParam('variable_mapper');
-
     if (e.key + prevChar() === prefix) {
       if (autoComplete === undefined || (autoComplete.hasFocus !== undefined && !autoComplete.hasFocus)) {
         e.preventDefault();
+        var editorRange = editor.selection.getRng(); // get range object for the current caret position
+
+        var node = editorRange.commonAncestorContainer; // relative node to the selection
+
+        range = document.createRange(); // create a new range object for the deletion
+        range.selectNodeContents(node);
+        range.setStart(node, editorRange.endOffset - 1); // current caret pos - 1
+        range.setEnd(node, editorRange.endOffset); // current caret pos
+        range.deleteContents();
+
+        editor.focus(); // brings focus back to the editor
         // Clone options object and set the used delimiter.
-        autoComplete = new AutoComplete(editor, $.extend({}, autoCompleteData, {delimiter: prefix}));
+        autoComplete = new AutoComplete(editor, autoCompleteData);
       }
     }
   }
@@ -628,7 +647,7 @@ tinymce.PluginManager.add('variable', function (editor) {
   editor.on('getcontent', stringToHTML);
   editor.on('click', handleClick);
   editor.on('mousedown', preventDrag);
-  editor.on('keydown', handleInput);
+  editor.on('keypress', handleInput);
 
   this.addVariable = addVariable;
 
