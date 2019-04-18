@@ -81,6 +81,7 @@ tinymce.PluginManager.add('variable', function (editor) {
 
     renderInput: function () {
       var rawHtml = '<span id="autocomplete">' +
+        '<span id="autocomplete-delimiter">' + this.options.delimiter + '</span>' +
         '<span id="autocomplete-searchtext"><span class="dummy">\uFEFF</span></span>' +
         '</span>';
 
@@ -95,7 +96,7 @@ tinymce.PluginManager.add('variable', function (editor) {
       this.editor.on('keydown', this.editorKeyDownProxy = $.proxy(this.rteKeyDown, this), true);
       this.editor.on('click', this.editorClickProxy = $.proxy(this.rteClicked, this));
 
-      $('body').on('click', this.bodyClickProxy = $.proxy(this.rteLostFocus, this));
+      // $('body').on('click', this.bodyClickProxy = $.proxy(this.rteLostFocus, this));
 
       $(this.editor.getWin()).on('scroll', this.rteScroll = $.proxy(function () {
         this.cleanUp(true);
@@ -363,8 +364,8 @@ tinymce.PluginManager.add('variable', function (editor) {
 
     select: function (item) {
       this.editor.focus();
-      this.editor.execCommand('mceInsertContent', false, this.insert(item));
-      // stringToHTML();
+      $(this.editor.dom.select('span#autocomplete')).replaceWith(this.insert(item));
+      stringToHTML();
     },
 
     insert: function (item) {
@@ -388,10 +389,11 @@ tinymce.PluginManager.add('variable', function (editor) {
           return;
         }
 
-        var replacement = $('<p>' + this.options.delimiter + text + '</p>')[0].firstChild,
+        var replacement = $('<p>' + prefix + text + suffix.substr(-1, 1) + '</p>')[0].firstChild,
           focus = $(this.editor.selection.getNode()).offset().top === ($selection.offset().top + (($selection.outerHeight() - $selection.height()) / 2));
 
-        this.editor.dom.replace(replacement, $selection[0]);
+        this.editor.dom.replace(replacement, $selection[0])
+
 
         if (focus) {
           this.editor.selection.select(replacement);
@@ -489,6 +491,25 @@ tinymce.PluginManager.add('variable', function (editor) {
     });
 
     var variable = prefix + cleanValue + suffix;
+    return editor.dom.create('span', { 'class': className, 'data-original-variable': variable, contenteditable: false}, cleanMappedValue);
+  }
+
+  function createHTMLVariable2(value) {
+
+    var cleanValue = cleanVariable(value);
+
+    // check if variable is valid
+    if (!isValid(cleanValue))
+      return value;
+
+    var cleanMappedValue = getMappedValue(cleanValue);
+
+    editor.fire('variableToHTML', {
+      value: value,
+      cleanValue: cleanValue,
+    });
+
+    var variable = prefix + cleanValue + suffix;
     return '<span class="' + className + '" data-original-variable="' + variable + '" contenteditable="false">' + cleanMappedValue + '</span>';
   }
 
@@ -511,13 +532,14 @@ tinymce.PluginManager.add('variable', function (editor) {
 
     // loop over all nodes that contain a string variable
     for (var i = 0; i < nodeList.length; i++) {
-      nodeValue = nodeList[i].nodeValue.replace(getStringVariableRegex(), createHTMLVariable);
+      nodeValue = nodeList[i].nodeValue.replace(getStringVariableRegex(), createHTMLVariable2);
       div = editor.dom.create('div', null, nodeValue);
       while ((node = div.lastChild)) {
         editor.dom.insertAfter(node, nodeList[i]);
 
         if (isVariable(node)) {
-          var next = node.nextSibling;
+          editor.selection.select(node);
+          editor.selection.collapse(0);
         }
       }
 
@@ -526,7 +548,7 @@ tinymce.PluginManager.add('variable', function (editor) {
   }
 
   function handleInput(e) {
-    if (e.key + prevChar() === prefix) {
+    if (e.key + prevChar(1) === prefix) {
       if (autoComplete === undefined || (autoComplete.hasFocus !== undefined && !autoComplete.hasFocus)) {
         e.preventDefault();
         var editorRange = editor.selection.getRng(); // get range object for the current caret position
@@ -543,13 +565,28 @@ tinymce.PluginManager.add('variable', function (editor) {
         // Clone options object and set the used delimiter.
         autoComplete = new AutoComplete(editor, autoCompleteData);
       }
+    } else if (prevChar(1) + e.key === suffix) {
+      e.preventDefault();
+      var editorRange = editor.selection.getRng(); // get range object for the current caret position
+
+      var node = editorRange.commonAncestorContainer; // relative node to the selection
+
+      range = document.createRange(); // create a new range object for the deletion
+      range.selectNodeContents(node);
+      range.setStart(node, editorRange.endOffset - 1); // current caret pos - 1
+      range.setEnd(node, editorRange.endOffset); // current caret pos
+      range.deleteContents();
+
+      editor.focus(); // brings focus back to the editor
+      autoComplete.cleanUp(true);
+      stringToHTML();
     }
   }
 
-  function prevChar() {
+  function prevChar(amount) {
     var start = editor.selection.getRng(true).startOffset;
     var text = editor.selection.getRng(true).startContainer.data || '';
-    var character = text.substr(start > 0 ? start - 1 : 0, 1);
+    var character = text.substr(start > 0 ? start - amount : 0, amount);
 
     return character;
   }
@@ -605,8 +642,17 @@ tinymce.PluginManager.add('variable', function (editor) {
    * @return {void}
    */
   function addVariable(value) {
-    var htmlVariable = createHTMLVariable(value);
-    editor.execCommand('mceInsertContent', false, htmlVariable);
+    var newNode = createHTMLVariable(value);
+    // editor.execCommand('mceInsertContent', false, htmlVariable);
+    /*
+    ed.dom.create('div', {}, 'This is a new DIV');
+    ed.selection.setNode(newNode);
+    ed.selection.select(ed.selection.getNode(newNode));
+     */
+    editor.selection.setNode(newNode);
+    editor.selection.select(editor.selection.getNode(newNode));
+    // editor.selection.select(htmlVariable);
+    editor.selection.collapse(0);
   }
 
   function isVariable(element) {
@@ -643,8 +689,8 @@ tinymce.PluginManager.add('variable', function (editor) {
     e.stopImmediatePropagation();
   }
 
-  editor.on('beforegetcontent', handleContentRerender);
-  editor.on('getcontent', stringToHTML);
+  // editor.on('beforegetcontent', handleContentRerender);
+  // editor.on('getcontent', stringToHTML);
   editor.on('click', handleClick);
   editor.on('mousedown', preventDrag);
   editor.on('keypress', handleInput);
