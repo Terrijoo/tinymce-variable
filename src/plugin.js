@@ -194,13 +194,13 @@ tinymce.PluginManager.add('variable', function (editor) {
       var $target = $(e.target);
 
       if (this.hasFocus && $target.parent().attr('id') !== 'autocomplete-searchtext') {
-        this.cleanUp(true);
+        this.cleanUp(true, true);
       }
     },
 
     rteLostFocus: function () {
       if (this.hasFocus) {
-        this.cleanUp(true);
+        this.cleanUp(true, true);
       }
     },
 
