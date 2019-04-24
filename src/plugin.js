@@ -44,6 +44,8 @@ tinymce.PluginManager.add('variable', function (editor) {
   var prefix = editor.getParam('variable_prefix', '{{');
   var suffix = editor.getParam('variable_suffix', '}}');
 
+  var bookmark;
+
   var autoComplete;
   var autoCompleteData = editor.getParam('variables');
   autoCompleteData.delimiter = (autoCompleteData.delimiter !== undefined) ? autoCompleteData.delimiter : prefix;
@@ -61,7 +63,6 @@ tinymce.PluginManager.add('variable', function (editor) {
     this.options.insertFrom = this.options.insertFrom || this.options.queryBy;
 
     this.matcher = this.options.matcher || this.matcher;
-    this.sorter = this.options.sorter || this.sorter;
     this.renderDropdown = this.options.renderDropdown || this.renderDropdown;
     this.render = this.options.render || this.render;
     this.insert = this.options.insert || this.insert;
@@ -235,25 +236,6 @@ tinymce.PluginManager.add('variable', function (editor) {
       return ~item[this.options.queryBy].toLowerCase().indexOf(this.query.toLowerCase());
     },
 
-    sorter: function (items) {
-      var beginswith = [],
-        caseSensitive = [],
-        caseInsensitive = [],
-        item;
-
-      while ((item = items.shift()) !== undefined) {
-        if (!item[this.options.queryBy].toLowerCase().indexOf(this.query.toLowerCase())) {
-          beginswith.push(item);
-        } else if (~item[this.options.queryBy].indexOf(this.query)) {
-          caseSensitive.push(item);
-        } else {
-          caseInsensitive.push(item);
-        }
-      }
-
-      return beginswith.concat(caseSensitive, caseInsensitive);
-    },
-
     highlighter: function (text) {
       return text.replace(new RegExp('(' + this.query.replace(/([.?*+^$[\]\\(){}|-])/g, '\\$1') + ')', 'ig'), function ($1, match) {
         return '<strong>' + match + '</strong>';
@@ -285,8 +267,6 @@ tinymce.PluginManager.add('variable', function (editor) {
         items = $.grep(data, function (item) {
           return _this.matcher(item);
         });
-
-      items = _this.sorter(items);
 
       if (this.options.items === -1) {
         items = items.slice();
@@ -327,7 +307,7 @@ tinymce.PluginManager.add('variable', function (editor) {
 
     render: function (item, index) {
       return '<li>' +
-        '<a href="javascript:;"><span>' + item[this.options.queryBy] + '</span></a>' +
+        '<a href="javascript:;"><span>' + item[this.options.variable_label] + '</span></a>' +
         '</li>';
     },
 
@@ -366,6 +346,9 @@ tinymce.PluginManager.add('variable', function (editor) {
       this.editor.focus();
       $(this.editor.dom.select('span#autocomplete')).replaceWith(this.insert(item));
       stringToHTML();
+      //handle selection from here
+      this.editor.selection.select(this.editor.selection.getEnd());
+      this.editor.selection.collapse(0);
     },
 
     insert: function (item) {
@@ -389,15 +372,16 @@ tinymce.PluginManager.add('variable', function (editor) {
           return;
         }
 
+        // var replacement = this.editor.dom.create('p'),
         var replacement = $('<p>' + prefix + text + suffix.substr(-1, 1) + '</p>')[0].firstChild,
           focus = $(this.editor.selection.getNode()).offset().top === ($selection.offset().top + (($selection.outerHeight() - $selection.height()) / 2));
 
-        this.editor.dom.replace(replacement, $selection[0])
-
+        this.editor.dom.replace(replacement, $selection[0]);
 
         if (focus) {
-          this.editor.selection.select(replacement);
-          this.editor.selection.collapse();
+          stringToHTML();
+          this.editor.selection.select(this.editor.selection.getEnd());
+          this.editor.selection.collapse(0);
         }
       }
     },
@@ -434,7 +418,7 @@ tinymce.PluginManager.add('variable', function (editor) {
    * @return {RegExp}
    */
   function getStringVariableRegex() {
-    return new RegExp(prefix + '[a-z_A-Z]+' + suffix, 'g');
+    return new RegExp(prefix + '[a-z._A-Z]+' + suffix, 'g');
   }
 
   /**
@@ -454,7 +438,7 @@ tinymce.PluginManager.add('variable', function (editor) {
 
   function getMappedValue(cleanValue) {
     if (typeof mapper === 'function')
-      return mapper(cleanValue);
+      return mapper(editor, cleanValue);
 
     return mapper.hasOwnProperty(cleanValue) ? mapper[cleanValue] : cleanValue;
   }
@@ -476,25 +460,6 @@ tinymce.PluginManager.add('variable', function (editor) {
    * @return {string}
    */
   function createHTMLVariable(value) {
-
-    var cleanValue = cleanVariable(value);
-
-    // check if variable is valid
-    if (!isValid(cleanValue))
-      return value;
-
-    var cleanMappedValue = getMappedValue(cleanValue);
-
-    editor.fire('variableToHTML', {
-      value: value,
-      cleanValue: cleanValue,
-    });
-
-    var variable = prefix + cleanValue + suffix;
-    return editor.dom.create('span', { 'class': className, 'data-original-variable': variable, contenteditable: false}, cleanMappedValue);
-  }
-
-  function createHTMLVariable2(value) {
 
     var cleanValue = cleanVariable(value);
 
@@ -532,15 +497,15 @@ tinymce.PluginManager.add('variable', function (editor) {
 
     // loop over all nodes that contain a string variable
     for (var i = 0; i < nodeList.length; i++) {
-      nodeValue = nodeList[i].nodeValue.replace(getStringVariableRegex(), createHTMLVariable2);
+      nodeValue = nodeList[i].nodeValue.replace(getStringVariableRegex(), createHTMLVariable);
       div = editor.dom.create('div', null, nodeValue);
       while ((node = div.lastChild)) {
         editor.dom.insertAfter(node, nodeList[i]);
 
-        if (isVariable(node)) {
-          editor.selection.select(node);
-          editor.selection.collapse(0);
-        }
+        // if (isVariable(node)) {
+        // editor.selection.select(node);
+        // editor.selection.collapse(0);
+        // }
       }
 
       editor.dom.remove(nodeList[i]);
@@ -567,19 +532,11 @@ tinymce.PluginManager.add('variable', function (editor) {
       }
     } else if (prevChar(1) + e.key === suffix) {
       e.preventDefault();
-      var editorRange = editor.selection.getRng(); // get range object for the current caret position
-
-      var node = editorRange.commonAncestorContainer; // relative node to the selection
-
-      range = document.createRange(); // create a new range object for the deletion
-      range.selectNodeContents(node);
-      range.setStart(node, editorRange.endOffset - 1); // current caret pos - 1
-      range.setEnd(node, editorRange.endOffset); // current caret pos
-      range.deleteContents();
-
-      editor.focus(); // brings focus back to the editor
+      editor.off('beforegetcontent', handleContentRerender);
+      editor.off('getcontent', stringToHTML);
       autoComplete.cleanUp(true);
-      stringToHTML();
+      editor.on('beforegetcontent', handleContentRerender);
+      editor.on('getcontent', stringToHTML);
     }
   }
 
@@ -633,7 +590,8 @@ tinymce.PluginManager.add('variable', function (editor) {
    * @return {void}
    */
   function handleContentRerender(e) {
-    return e.format === 'raw' ? stringToHTML() : htmlToString();
+    // console.log('handleContentRerender', e, editor)
+    return e.format === 'raw' || !e.source_view ? stringToHTML() : htmlToString();
   }
 
   /**
@@ -642,17 +600,18 @@ tinymce.PluginManager.add('variable', function (editor) {
    * @return {void}
    */
   function addVariable(value) {
-    var newNode = createHTMLVariable(value);
-    // editor.execCommand('mceInsertContent', false, htmlVariable);
-    /*
-    ed.dom.create('div', {}, 'This is a new DIV');
-    ed.selection.setNode(newNode);
-    ed.selection.select(ed.selection.getNode(newNode));
-     */
-    editor.selection.setNode(newNode);
-    editor.selection.select(editor.selection.getNode(newNode));
-    // editor.selection.select(htmlVariable);
-    editor.selection.collapse(0);
+    var htmlVariable = createHTMLVariable(value);
+    editor.execCommand('mceInsertContent', false, htmlVariable);
+  }
+
+  /**
+   * sets the variables for this plugin
+   * @param {array} variables
+   */
+  function setVariables(variables) {
+    autoCompleteData.source = variables;
+    // update exposed variables
+    this.variables = variables;
   }
 
   function isVariable(element) {
@@ -689,12 +648,17 @@ tinymce.PluginManager.add('variable', function (editor) {
     e.stopImmediatePropagation();
   }
 
-  // editor.on('beforegetcontent', handleContentRerender);
-  // editor.on('getcontent', stringToHTML);
+  editor.on('beforegetcontent', handleContentRerender);
+  editor.on('setcontent', handleContentRerender);
+  editor.on('getcontent', stringToHTML);
   editor.on('click', handleClick);
   editor.on('mousedown', preventDrag);
   editor.on('keypress', handleInput);
 
   this.addVariable = addVariable;
+  this.setVariables = setVariables;
+  // expose variables, so it can be used for the sidepanel
+  this.variables = autoCompleteData.source;
+  this.$ = $;
 
 });
