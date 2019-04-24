@@ -152,7 +152,7 @@ tinymce.PluginManager.add('variable', function (editor) {
 
         //ESC
         case 27:
-          this.cleanUp(true);
+          this.cleanUp(true, true);
           break;
 
         default:
@@ -355,7 +355,7 @@ tinymce.PluginManager.add('variable', function (editor) {
       return prefix + item[this.options.insertFrom] + suffix;
     },
 
-    cleanUp: function (rollback) {
+    cleanUp: function (rollback, complete) {
       this.unbindEvents();
       this.hasFocus = false;
 
@@ -372,9 +372,13 @@ tinymce.PluginManager.add('variable', function (editor) {
           return;
         }
 
-        // var replacement = this.editor.dom.create('p'),
-        var replacement = $('<p>' + prefix + text + suffix.substr(-1, 1) + '</p>')[0].firstChild,
-          focus = $(this.editor.selection.getNode()).offset().top === ($selection.offset().top + (($selection.outerHeight() - $selection.height()) / 2));
+        var replacement;
+        if (complete) {
+          replacement = this.editor.dom.create('p');
+        } else {
+          replacement = $('<p>' + prefix + text + suffix.substr(-1, 1) + '</p>')[0].firstChild;
+        }
+        var focus = $(this.editor.selection.getNode()).offset().top === ($selection.offset().top + (($selection.outerHeight() - $selection.height()) / 2));
 
         this.editor.dom.replace(replacement, $selection[0]);
 
