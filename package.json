@@ -13,11 +13,11 @@
   "description": "Make it possible to use variables in your TinyMCE editor.",
   "main": "src/plugin.js",
   "dependencies": {
-    "jquery": "3.4.1"
+    "jquery": "3.4.1",
+    "uglify-js": "3.5.11"
   },
   "devDependencies": {
-    "eslint": "5.16.0",
-    "uglify-js": "3.5.11"
+    "eslint": "5.16.0"
   },
   "bugs": {
     "url": "https://github.com/bubobox/tinymce-variable/issues"
