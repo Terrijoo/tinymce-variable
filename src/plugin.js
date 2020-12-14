@@ -652,7 +652,7 @@ tinymce.PluginManager.add('variable', function (editor) {
     e.stopImmediatePropagation();
   }
 
-  editor.on('beforegetcontent', handleContentRerender);
+  editor.on('beforegetcontent', htmlToString);
   editor.on('setcontent', handleContentRerender);
   editor.on('getcontent', stringToHTML);
   editor.on('click', handleClick);
