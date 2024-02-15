@@ -12,7 +12,7 @@
   "description": "Make it possible to use variables in your TinyMCE editor.",
   "main": "src/plugin.js",
   "dependencies": {
-    "jquery": "3.4.1",
+    "jquery": "3.7.1",
     "uglify-js": "3.5.11"
   },
   "devDependencies": {
