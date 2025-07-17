@@ -473,7 +473,7 @@
 
       var cleanMappedValue = getMappedValue(cleanValue);
 
-      editor.fire('variableToHTML', {
+      editor.dispatch('variableToHTML', {
         value: value,
         cleanValue: cleanValue,
       });
